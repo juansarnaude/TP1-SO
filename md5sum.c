@@ -2,39 +2,72 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define BUFF_LEN    256
-#define SLAVES_QTY  4
+#define BUFF_LEN 256
+#define SLAVES_QTY 4
+#define MAX_FILES_SLAVE
 
+// Funciones usadas dentro de este archivo
+void create_slave_processes(char **paths, int paths_qty);
+void print_error_msg(char *str);
 
-//Funciones usadas dentro de este archivo
-void create_slave_processes(char ** paths, int paths_qty);
-void print_error_msg(char* str);
-
-
-int main(int argc, char * argv[]){
-    //Verificamos que la cantidad de argumentos sea mayor a 1
-    if(argc <= 1){
+int main(int argc, char *argv[])
+{
+    // Verification of arguments
+    if (argc <= 1)
+    {
         char errmsg[] = "Invalid arguments quantity\n";
         print_error_msg(errmsg);
     }
-    char ** paths;
+
+    char **paths = calloc(argc - 1, sizeof(char *));
+    if (paths == NULL)
+    {
+        char errmsg[] = "Failed to allocate memory for paths\n";
+        print_error_msg(errmsg);
+    }
+
     int file_qty;
-    //Asignamos cada uno de los path al array de strings "paths" para pasárselo como argumento a la función create_slave_processes
-    for(file_qty = 1 ; file_qty <= argc - 1 ; file_qty++){
+
+    // Create an array of strings that will be used as an argument for the creation of the slave procceses
+    for (file_qty = 1; file_qty <= argc - 1; file_qty++)
+    {
         paths[file_qty - 1] = argv[file_qty];
     }
-    //Llamamos a la funcion que crea los procesos esclavos
-    create_slave_processes(paths,file_qty);
+
+    // Call to the funciton that create slave processes
+    create_slave_processes(paths, file_qty);
+
+    // Free memory allocated for paths
+    free(paths);
+
+    return 0;
 }
 
-void create_slave_processes(char ** paths,int paths_qty){
-    int aux;
-    for(aux = 0 ; aux < paths_qty ; aux++){
-        fork();
+void create_slave_processes(char **paths, int paths_qty)
+{
+    int n_slave;
+
+    const char *sem1 = "sem_1";
+    /*
+        const char * sem2 = "sem_2";
+        const char * sem3 = "sem_3";
+        const char * sem4 = "sem_4";
+    */
+
+    char *newargv[] = {"slave", NULL};
+    char *newenv[] = {NULL};
+
+    for (n_slave = 1; n_slave <= paths_qty / 2; n_slave++)
+    {
+        if (fork() == 0)
+        {
+            execve("slave", newargv, newenv);
+        }
     }
 }
 
-void print_error_msg(char * str){
+void print_error_msg(char *str)
+{
     perror(str);
     exit(0);
 }
