@@ -1,6 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define BUFF_LEN 256
 #define SLAVES_QTY 4
@@ -15,7 +18,7 @@ int main(int argc, char *argv[])
     // Verification of arguments
     if (argc <= 1)
     {
-        char errmsg[] = "Invalid arguments quantity\n";
+        char errmsg[] = "Invalid arguments quantity";
         print_error_msg(errmsg);
     }
 
@@ -59,9 +62,17 @@ void create_slave_processes(char **paths, int paths_qty)
 
     for (n_slave = 1; n_slave <= paths_qty / 2; n_slave++)
     {
+        int pipefd[2];
+        pipe(pipefd);
         if (fork() == 0)
         {
+            close(pipefd[STDOUT_FILENO]);
+            close(STDIN_FILENO);
+            // What's the input? What FD should we use so the slave process can read paths
+            // dup(pipefd[0]);
+            close(pipefd[0]);
             execve("slave", newargv, newenv);
+            perror("Slave failed");
         }
     }
 }
