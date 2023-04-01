@@ -7,7 +7,10 @@
 
 #define BUFF_LEN 256
 #define SLAVES_QTY 4
-#define MAX_FILES_SLAVE
+#define MAX_FILES_SLAVE 2
+
+#define READ 0
+#define WRITE 1
 
 // Funciones usadas dentro de este archivo
 void create_slave_processes(char **paths, int paths_qty);
@@ -49,30 +52,40 @@ int main(int argc, char *argv[])
 void create_slave_processes(char **paths, int paths_qty)
 {
     int n_slave;
-
-    const char *sem1 = "sem_1";
-    /*
-        const char * sem2 = "sem_2";
-        const char * sem3 = "sem_3";
-        const char * sem4 = "sem_4";
-    */
+    int files_remaining = paths_qty;
+    int pipefd[SLAVES_QTY][2]; // fd para los pipes que vamos a crear
 
     char *newargv[] = {"slave", NULL};
     char *newenv[] = {NULL};
 
-    for (n_slave = 1; n_slave <= paths_qty / 2; n_slave++)
+    // Create all pipes nescesary for the comunication between md5sum and slaves
+    for (n_slave = 0; n_slave < SLAVES_QTY; n_slave++)
     {
-        int pipefd[2];
-        pipe(pipefd);
-        if (fork() == 0)
+        if (pipe(pipefd[n_slave]) != 0)
         {
-            close(pipefd[STDOUT_FILENO]);
-            close(STDIN_FILENO);
-            // What's the input? What FD should we use so the slave process can read paths
-            // dup(pipefd[0]);
-            close(pipefd[0]);
+            perror("pipe");
+            exit(1);
+        }
+    }
+
+    for (n_slave = 1; (n_slave <= paths_qty / 2) && (n_slave <= SLAVES_QTY); n_slave++)
+    {
+        if (fork() == 0) // Child process
+        {
+            close(pipefd[n_slave - 1][WRITE]);
+            dup2(pipefd[n_slave - 1][READ], STDIN_FILENO);
+            close(pipefd[n_slave - 1][READ]);
+
             execve("slave", newargv, newenv);
-            perror("Slave failed");
+        }
+        else // Parent process
+        {
+            close(pipefd[n_slave - 1][READ]); // Close the read end of the pipe in the parent process
+
+            char *message = "Perfect muwu :3\0";
+            write(pipefd[n_slave - 1][WRITE], message, strlen(message));
+
+            close(pipefd[n_slave - 1][WRITE]);
         }
     }
 }
