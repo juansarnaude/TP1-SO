@@ -21,7 +21,6 @@ typedef struct shm_CDT
     int read_index;
 
     sem_t *sem;
-
 } shm_CDT;
 
 // Main is only for testing purposes
@@ -47,14 +46,14 @@ shm_ADT create_shm(int file_qty)
     int shm_fd = shm_open(name, O_CREAT | O_RDWR, (mode_t)MODE);
     if (shm_fd == -1)
     {
-        perror("shm_open failed");
+        perror("Creating the shared memory failed: shm_open failed");
         exit(1);
     }
 
     // Sets the size of the shared memory to file_qty * FILE_SIZE_SHM
     if (ftruncate(shm_fd, file_qty * FILE_SIZE_SHM) == -1)
     {
-        perror("ftruncate failed");
+        perror("Creating the shared memory failed: ftruncate failed");
         exit(1);
     }
 
@@ -62,7 +61,7 @@ shm_ADT create_shm(int file_qty)
     char *ptr = mmap(NULL, file_qty * FILE_SIZE_SHM, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (ptr == MAP_FAILED)
     {
-        perror("mmap failed");
+        perror("Creating the shared memory failed: mmap failed");
         exit(1);
     }
 
@@ -72,6 +71,15 @@ shm_ADT create_shm(int file_qty)
     new_shm->size = file_qty * FILE_SIZE_SHM;
     new_shm->write_index = 0;
     new_shm->read_index = 0;
+
+    new_shm->sem = sem_open("smh_sem", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
+    if (new_shm->sem == SEM_FAILED)
+    {
+        delete_shm(new_shm);
+        perror("Creating the shared memory failed: semaphor error");
+    }
+
+    return new_shm;
 }
 
 /*
@@ -84,7 +92,7 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM])
     // Check if theres enough space in the shared memory
     if (shm->write_index + FILE_SIZE_SHM >= shm->size)
     {
-        perror("Not enough spae in the shared memory");
+        perror("Not enough space in the shared memory");
         exit(1);
     }
 
@@ -96,12 +104,22 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM])
     }
 
     shm->write_index += FILE_SIZE_SHM;
+    if (sem_post(shm->sem) == -1)
+    {
+        perror("Failed in write function");
+        sem_close(shm->sem);
+        sem_unlink(SEM_NAME);
+        delete_shm(shm);
+        exit(1);
+    }
 
     return 1;
 }
 
 int read_shm(shm_ADT shm, char *buff)
 {
+    sem_wait(shm->sem);
+
     if (shm->read_index + FILE_SIZE_SHM >= shm->size)
     {
         perror("Trying to read out of bounds");
