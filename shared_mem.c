@@ -21,6 +21,8 @@ typedef struct shm_CDT
     int read_index;
 
     sem_t *sem;
+    sem_t *sem_write;
+    sem_t *sem_read;
 } shm_CDT;
 
 // Main is only for testing purposes
@@ -72,7 +74,21 @@ shm_ADT create_shm(int file_qty)
     new_shm->write_index = 0;
     new_shm->read_index = 0;
 
-    new_shm->sem = sem_open("smh_sem", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
+    new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
+    if (new_shm->sem == SEM_FAILED)
+    {
+        delete_shm(new_shm);
+        perror("Creating the shared memory failed: semaphor error");
+    }
+
+    new_shm->sem_write = sem_open(SEM_NAME_WRITE, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
+    if (new_shm->sem == SEM_FAILED)
+    {
+        delete_shm(new_shm);
+        perror("Creating the shared memory failed: semaphor error");
+    }
+
+    new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
     if (new_shm->sem == SEM_FAILED)
     {
         delete_shm(new_shm);
@@ -89,10 +105,25 @@ summing up to 64 bytes each time the function is called.
 */
 int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM])
 {
+    // Special semaphores for Write to avoid race condition and data overlaps
+    sem_wait(shm->sem_write);
+
     // Check if theres enough space in the shared memory
     if (shm->write_index + FILE_SIZE_SHM >= shm->size)
     {
         perror("Not enough space in the shared memory");
+        exit(1);
+    }
+    int shm_idx = shm->write_index;
+    shm->write_index += FILE_SIZE_SHM;
+
+    if (sem_post(shm->sem_write) == -1)
+    {
+        shm->write_index -= FILE_SIZE_SHM;
+        perror("Failed in write function");
+        sem_close(shm->sem_write);
+        sem_unlink(SEM_NAME_WRITE);
+        delete_shm(shm);
         exit(1);
     }
 
@@ -100,10 +131,9 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM])
     // Cortar antes, cuando no queda mas pid (el tema de los 0)
     for (; i < FILE_SIZE_SHM; i++)
     {
-        shm->shm_ptr[shm->write_index + i] = buff[i];
+        shm->shm_ptr[shm_idx + i] = buff[i];
     }
 
-    shm->write_index += FILE_SIZE_SHM;
     if (sem_post(shm->sem) == -1)
     {
         perror("Failed in write function");
@@ -116,13 +146,30 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM])
     return 1;
 }
 
+// Reads the shared memory.
 int read_shm(shm_ADT shm, char *buff)
 {
     sem_wait(shm->sem);
 
+    // Special semaphores for Write to avoid race condition and data misreadings
+    sem_wait(shm->sem_read);
+
+    // Check if theres enough space in the shared memory
     if (shm->read_index + FILE_SIZE_SHM >= shm->size)
     {
-        perror("Trying to read out of bounds");
+        perror("Trying to read out of shared memory bounds");
+        exit(1);
+    }
+    int shm_idx = shm->read_index;
+    shm->read_index += FILE_SIZE_SHM;
+
+    if (sem_post(shm->sem_read) == -1)
+    {
+        shm->read_index -= FILE_SIZE_SHM;
+        perror("Failed in read function");
+        sem_close(shm->sem_read);
+        sem_unlink(SEM_NAME_READ);
+        delete_shm(shm);
         exit(1);
     }
 
@@ -131,7 +178,7 @@ int read_shm(shm_ADT shm, char *buff)
     // Cortar antes, cuando no queda mas pid
     for (; i < FILE_SIZE_SHM; i++)
     {
-        buff[i] = shm->shm_ptr[shm->read_index + i];
+        buff[i] = shm->shm_ptr[shm_idx + i];
     }
 
     shm->read_index += FILE_SIZE_SHM;
