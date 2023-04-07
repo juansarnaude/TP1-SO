@@ -14,9 +14,9 @@
 #define WRITE 1
 
 // Funciones usadas dentro de este archivo
-void create_slave_processes(int pipefd[][2], int max_slaves);
+void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 void print_error_msg(char *str);
-void process_files(int n_slave, int pipefd[][2], char **paths, int *files_processed, int amount_proccess);
+void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int amount_proccess);
 
 int main(int argc, char *argv[])
 {
@@ -45,13 +45,15 @@ int main(int argc, char *argv[])
 
     // Call to the funciton that create slave processes
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
-    int pipefd[max_slaves][2]; // fd para los pipes que vamos a crear
+    // fd para los pipes que vamos a crear
+    int pipefd_w[max_slaves][2];
+    int pipefd_r[max_slaves][2];
 
-    create_slave_processes(pipefd, max_slaves);
+    create_slave_processes(pipefd_w, pipefd_r, max_slaves);
     int files_processed = 0;
     int i = 0;
     for (; i < max_slaves && files_processed < file_qty; i++)
-        process_files(i, pipefd, paths, &files_processed, (((file_qty - files_processed) == 1) ? 1 : MAX_FILES_SLAVE));
+        process_files(i, pipefd_w, paths, &files_processed, (((file_qty - files_processed) == 1) ? 1 : MAX_FILES_SLAVE));
     // Free memory allocated for paths
 
     free(paths);
@@ -59,7 +61,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void create_slave_processes(int pipefd[][2], int max_slaves)
+void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves)
 {
     // Slave restriction and identifiers
     int n_slave;
@@ -69,43 +71,46 @@ void create_slave_processes(int pipefd[][2], int max_slaves)
     // Create all pipes nescesary for the comunication between md5sum and slaves
     for (n_slave = 0; n_slave < max_slaves; n_slave++)
     {
-        if (pipe(pipefd[n_slave]) != 0)
+        if (pipe(pipefd_w[n_slave]) != 0 || pipe(pipefd_r[n_slave]))
         {
-            char errmsg[] = "Failed to create pipe";
+            char errmsg[] = "Failed to create pipes";
             print_error_msg(errmsg);
         }
 
         if (fork() == 0) // Child process
         {
-            close(pipefd[n_slave][WRITE]);
-            dup2(pipefd[n_slave][READ], STDIN_FILENO);
-            close(pipefd[n_slave][READ]);
+            close(pipefd_w[n_slave][WRITE]);
+            close(pipefd_r[n_slave][READ]);
+            dup2(pipefd_w[n_slave][READ], STDIN_FILENO);
+            dup2(pipefd_r[n_slave][WRITE], STDOUT_FILENO);
+            close(pipefd_w[n_slave][READ]);
+            close(pipefd_r[n_slave][WRITE]);
 
             execve("slave", newargv, newenv);
         }
     }
 }
 
-void process_files(int n_slave, int pipefd[][2], char **paths, int *files_processed, int amount_proccess)
+void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int amount_proccess)
 {
-    close(pipefd[n_slave][READ]); // Close the read end of the pipe in the parent process
+    close(pipefd_w[n_slave][READ]); // Close the read end of the pipe in the parent process
     // Send files to slave processes
     int i = 0;
     for (; i < amount_proccess; i++)
     {
-        if (write(pipefd[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
+        if (write(pipefd_w[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
         {
             char errmsg[] = "Failed to send paths to slave process";
             print_error_msg(errmsg);
         }
-        if (write(pipefd[n_slave][WRITE], &"\n", 1) == -1)
+        if (write(pipefd_w[n_slave][WRITE], &"\n", 1) == -1)
         {
             char errmsg[] = "Failed to send paths to slave process";
             print_error_msg(errmsg);
         }
         (*files_processed)++;
     }
-    close(pipefd[n_slave][WRITE]);
+    close(pipefd_w[n_slave][WRITE]);
 }
 
 void print_error_msg(char *str)
