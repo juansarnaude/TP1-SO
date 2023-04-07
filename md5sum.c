@@ -81,8 +81,10 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
         {
             close(pipefd_w[n_slave][WRITE]);
             close(pipefd_r[n_slave][READ]);
+
             dup2(pipefd_w[n_slave][READ], STDIN_FILENO);
             dup2(pipefd_r[n_slave][WRITE], STDOUT_FILENO);
+
             close(pipefd_w[n_slave][READ]);
             close(pipefd_r[n_slave][WRITE]);
 
