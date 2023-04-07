@@ -56,6 +56,22 @@ int main(int argc, char *argv[])
         process_files(i, pipefd_w, paths, &files_processed, (((file_qty - files_processed) == 1) ? 1 : MAX_FILES_SLAVE));
     // Free memory allocated for paths
 
+    char buffer[BUFF_LEN];
+    int bytes_read;
+    int x;
+    for (x = 0; x < max_slaves; x++)
+    {
+        close(pipefd_r[x][WRITE]); // Close the write end of the pipe in the parent process
+        while ((bytes_read = read(pipefd_r[x][READ], buffer, BUFF_LEN)) > 0)
+        {
+            // Write to out.txt
+            int fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+            write(fp, buffer, bytes_read);
+            close(fp);
+        }
+        close(pipefd_r[x][READ]);
+    }
+
     free(paths);
 
     return 0;
@@ -71,7 +87,7 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
     // Create all pipes nescesary for the comunication between md5sum and slaves
     for (n_slave = 0; n_slave < max_slaves; n_slave++)
     {
-        if (pipe(pipefd_w[n_slave]) != 0 || pipe(pipefd_r[n_slave]))
+        if (pipe(pipefd_w[n_slave]) != 0 || pipe(pipefd_r[n_slave]) != 0)
         {
             char errmsg[] = "Failed to create pipes";
             print_error_msg(errmsg);
@@ -80,10 +96,11 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
         if (fork() == 0) // Child process
         {
             close(pipefd_w[n_slave][WRITE]);
-            close(pipefd_r[n_slave][READ]);
             dup2(pipefd_w[n_slave][READ], STDIN_FILENO);
-            dup2(pipefd_r[n_slave][WRITE], STDOUT_FILENO);
             close(pipefd_w[n_slave][READ]);
+
+            dup2(pipefd_r[n_slave][WRITE], STDOUT_FILENO);
+            close(pipefd_r[n_slave][READ]);
             close(pipefd_r[n_slave][WRITE]);
 
             execve("slave", newargv, newenv);
