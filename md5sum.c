@@ -13,8 +13,6 @@
 #define READ 0
 #define WRITE 1
 
-#define FILE_SEPARATOR 1
-
 // Funciones usadas dentro de este archivo
 void create_slave_processes(int pipefd[][2], int max_slaves);
 void print_error_msg(char *str);
@@ -43,10 +41,11 @@ int main(int argc, char *argv[])
     {
         paths[file_qty - 1] = argv[file_qty];
     }
-
     // Call to the funciton that create slave processes
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
     int pipefd[max_slaves][2]; // fd para los pipes que vamos a crear
+
+    printf("%d\n", max_slaves);
 
     create_slave_processes(pipefd, max_slaves);
     int files_processed = 0;
@@ -58,28 +57,6 @@ int main(int argc, char *argv[])
     free(paths);
 
     return 0;
-}
-
-void process_files(int n_slave, int pipefd[][2], char **paths, int *files_processed, int amount_proccess)
-{
-    close(pipefd[n_slave][READ]); // Close the read end of the pipe in the parent process
-    // Send files to slave processes
-    int i = 0;
-    for (; i < amount_proccess; i++)
-    {
-        if (write(pipefd[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
-        {
-            char errmsg[] = "Failed to send paths to slave process";
-            print_error_msg(errmsg);
-        }
-        /* if (write(pipefd[n_slave][WRITE], FILE_SEPARATOR, 1)
-        {
-            char errmsg[] = "Failed to send paths to slave process";
-            print_error_msg(errmsg);
-        }*/
-        (*files_processed)++;
-    }
-    close(pipefd[n_slave][WRITE]);
 }
 
 void create_slave_processes(int pipefd[][2], int max_slaves)
@@ -107,6 +84,28 @@ void create_slave_processes(int pipefd[][2], int max_slaves)
             execve("slave", newargv, newenv);
         }
     }
+}
+
+void process_files(int n_slave, int pipefd[][2], char **paths, int *files_processed, int amount_proccess)
+{
+    close(pipefd[n_slave][READ]); // Close the read end of the pipe in the parent process
+    // Send files to slave processes
+    int i = 0;
+    for (; i < amount_proccess; i++)
+    {
+        if (write(pipefd[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
+        {
+            char errmsg[] = "Failed to send paths to slave process";
+            print_error_msg(errmsg);
+        }
+        if (write(pipefd[n_slave][WRITE], &"\n", 1) == -1)
+        {
+            char errmsg[] = "Failed to send paths to slave process";
+            print_error_msg(errmsg);
+        }
+        (*files_processed)++;
+    }
+    close(pipefd[n_slave][WRITE]);
 }
 
 void print_error_msg(char *str)
