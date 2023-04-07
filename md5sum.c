@@ -41,11 +41,11 @@ int main(int argc, char *argv[])
     {
         paths[file_qty - 1] = argv[file_qty];
     }
+    file_qty--;
+
     // Call to the funciton that create slave processes
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
     int pipefd[max_slaves][2]; // fd para los pipes que vamos a crear
-
-    printf("%d\n", max_slaves);
 
     create_slave_processes(pipefd, max_slaves);
     int files_processed = 0;
