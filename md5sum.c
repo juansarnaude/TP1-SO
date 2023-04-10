@@ -17,7 +17,8 @@
 // Funciones usadas dentro de este archivo
 void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 void print_error_msg(char *str);
-void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed);
+int amount_to_process(int file_qty, int files_processed);
+void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int qty);
 void close_pipes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 
 int main(int argc, char *argv[])
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < max_slaves; i++)
     {
-        process_files(i, pipefd_w, paths, &files_processed);
+        process_files(i, pipefd_w, paths, &files_processed, amount_to_process(file_qty, files_processed));
     }
 
     while (files_read < file_qty)
@@ -91,10 +92,10 @@ int main(int argc, char *argv[])
 
         for (int i = 0; i < max_slaves; i++)
         {
-
             if (FD_ISSET(pipefd_r[i][READ], &read_fds))
             {
                 bytes_read = read(pipefd_r[i][READ], buffer, 64);
+
                 fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
                 write(fp, buffer, bytes_read);
                 close(fp);
@@ -102,7 +103,7 @@ int main(int argc, char *argv[])
 
                 if (files_processed < file_qty)
                 {
-                    process_files(i, pipefd_w, paths, &files_processed);
+                    process_files(i, pipefd_w, paths, &files_processed, amount_to_process(file_qty, files_processed));
                 }
             }
             FD_CLR(pipefd_r[i][READ], &read_fds);
@@ -149,21 +150,39 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
     }
 }
 
-void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed)
+int amount_to_process(int file_qty, int files_processed)
 {
-    //   Send a file to the slave process
-    if (write(pipefd_w[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
+    if (files_processed > file_qty)
     {
-        char errmsg[] = "Failed to send paths to slave process";
-        print_error_msg(errmsg);
+        perror("Error in processing of files");
     }
+    if (files_processed + MAX_FILES_SLAVE <= file_qty)
+    {
+        return MAX_FILES_SLAVE;
+    }
+    return file_qty - files_processed;
+}
 
-    if (write(pipefd_w[n_slave][WRITE], &"\n", 1) == -1)
+void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int qty)
+{
+    for (int i = 0; i < qty; i++)
     {
-        char errmsg[] = "Failed to send paths to slave process";
-        print_error_msg(errmsg);
+        //   Send a file to the slave process
+        if (write(pipefd_w[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
+        {
+            char errmsg[] = "Failed to send paths to slave process";
+            print_error_msg(errmsg);
+        }
+
+        // Each file will be written in a line
+        if (write(pipefd_w[n_slave][WRITE], &"\n", 1) == -1)
+        {
+            char errmsg[] = "Failed to send paths to slave process";
+            print_error_msg(errmsg);
+        }
+
+        (*files_processed)++;
     }
-    (*files_processed)++;
 }
 
 void print_error_msg(char *str)
