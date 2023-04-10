@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
                 bytes_read = read(pipefd_r[i][READ], buffer, 64);
 
                 fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+                dprintf(fp, "%d\t", bytes_read);
                 write(fp, buffer, bytes_read);
                 close(fp);
                 files_read++;
