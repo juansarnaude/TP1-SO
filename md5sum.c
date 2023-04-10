@@ -15,7 +15,7 @@
 #define WRITE 1
 
 // Funciones usadas dentro de este archivo
-void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, pid_t pids[]);
+void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, int pids[]);
 void print_error_msg(char *str);
 int amount_to_process(int file_qty, int files_processed);
 void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int qty);
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     // fd para los pipes que vamos a crear
     int pipefd_w[max_slaves][2];
     int pipefd_r[max_slaves][2];
-    pid_t pids[max_slaves];
+    int pids[max_slaves];
 
     create_slave_processes(pipefd_w, pipefd_r, max_slaves, pids);
 
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, pid_t pids[])
+void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, int pids[])
 {
     // Slave restriction and identifiers
     int n_slave;
@@ -136,10 +136,8 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
             char errmsg[] = "Failed to create pipes";
             print_error_msg(errmsg);
         }
-
-        if (fork() == 0) // Child process
+        if ((pids[n_slave] = fork()) == 0) // Child process, assigning fork result to each pid
         {
-            pids[n_slave] = getpid();
             close(pipefd_w[n_slave][WRITE]);
             dup2(pipefd_w[n_slave][READ], STDIN_FILENO);
             close(pipefd_w[n_slave][READ]);
