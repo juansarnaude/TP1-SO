@@ -15,7 +15,7 @@
 #define WRITE 1
 
 // Funciones usadas dentro de este archivo
-void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
+void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, pid_t pids[]);
 void print_error_msg(char *str);
 int amount_to_process(int file_qty, int files_processed);
 void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int qty);
@@ -51,8 +51,9 @@ int main(int argc, char *argv[])
     // fd para los pipes que vamos a crear
     int pipefd_w[max_slaves][2];
     int pipefd_r[max_slaves][2];
+    pid_t pids[max_slaves];
 
-    create_slave_processes(pipefd_w, pipefd_r, max_slaves);
+    create_slave_processes(pipefd_w, pipefd_r, max_slaves, pids);
 
     int files_processed = 0;
     int files_read = 0;
@@ -94,10 +95,10 @@ int main(int argc, char *argv[])
         {
             if (FD_ISSET(pipefd_r[i][READ], &read_fds))
             {
-                bytes_read = read(pipefd_r[i][READ], buffer, 64);
+                bytes_read = read(pipefd_r[i][READ], buffer, 73);
 
                 fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
-                dprintf(fp, "%d\t", bytes_read);
+                dprintf(fp, "%d\t", pids[i]);
                 write(fp, buffer, bytes_read);
                 close(fp);
                 files_read++;
@@ -120,7 +121,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves)
+void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, pid_t pids[])
 {
     // Slave restriction and identifiers
     int n_slave;
@@ -138,6 +139,7 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
 
         if (fork() == 0) // Child process
         {
+            pids[n_slave] = getpid();
             close(pipefd_w[n_slave][WRITE]);
             dup2(pipefd_w[n_slave][READ], STDIN_FILENO);
             close(pipefd_w[n_slave][READ]);
