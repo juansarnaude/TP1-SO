@@ -18,6 +18,7 @@
 void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 void print_error_msg(char *str);
 void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed);
+void close_pipes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 
 int main(int argc, char *argv[])
 {
@@ -55,10 +56,12 @@ int main(int argc, char *argv[])
     int files_processed = 0;
     int files_read = 0;
     int to_read;
-    char *buffer;
+    char *buffer = malloc(BUFF_LEN * sizeof(char));
     int bytes_read;
 
     int fp; // BORRAR AL TERMINAR TESTEOS
+
+    fd_set read_fds;
 
     for (int i = 0; i < max_slaves; i++)
     {
@@ -67,15 +70,16 @@ int main(int argc, char *argv[])
 
     while (files_read < file_qty)
     {
-        fd_set read_fds;
+        int max_fd = FD_SETSIZE;
         FD_ZERO(&read_fds);
-        int max_fd = 0;
-
         for (int i = 0; i < max_slaves; i++)
         {
-            max_fd = (pipefd_r[i][READ] > max_fd) ? pipefd_r[i][READ] : max_fd;
             FD_SET(pipefd_r[i][READ], &read_fds);
         }
+
+        int fx = open("aux.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+        write(fx, "b", 1);
+        close(fx);
 
         if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1)
         {
@@ -83,25 +87,33 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
+        write(fx, "b", 1);
+
         for (int i = 0; i < max_slaves; i++)
         {
 
             if (FD_ISSET(pipefd_r[i][READ], &read_fds))
             {
-                // close(pipefd_r[i][WRITE]);
                 bytes_read = read(pipefd_r[i][READ], buffer, 64);
                 fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
                 write(fp, buffer, bytes_read);
                 close(fp);
-                // close(pipefd_r[i][READ]);
                 files_read++;
-                process_files(i, pipefd_w, paths, &files_processed);
+
+                if (files_processed < file_qty)
+                {
+                    process_files(i, pipefd_w, paths, &files_processed);
+                }
             }
+            FD_CLR(pipefd_r[i][READ], &read_fds);
         }
     }
 
+    close_pipes(pipefd_w, pipefd_r, max_slaves);
+
     // Free memory allocated for paths
     free(paths);
+    free(buffer);
 
     return 0;
 }
@@ -139,24 +151,32 @@ void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves
 
 void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed)
 {
-    close(pipefd_w[n_slave][READ]); // Close the read end of the pipe in the parent process
-    // Send a file to the slave process
+    //   Send a file to the slave process
     if (write(pipefd_w[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
     {
         char errmsg[] = "Failed to send paths to slave process";
         print_error_msg(errmsg);
     }
+
     if (write(pipefd_w[n_slave][WRITE], &"\n", 1) == -1)
     {
         char errmsg[] = "Failed to send paths to slave process";
         print_error_msg(errmsg);
     }
     (*files_processed)++;
-    close(pipefd_w[n_slave][WRITE]);
 }
 
 void print_error_msg(char *str)
 {
     perror(str);
     exit(0);
+}
+
+void close_pipes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves)
+{
+    for (int i = 0; i < max_slaves; i++)
+    {
+        close(pipefd_r[i][READ]);
+        close(pipefd_w[i][WRITE]);
+    }
 }
