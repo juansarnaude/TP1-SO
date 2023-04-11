@@ -19,7 +19,7 @@ int main()
     {
         buffer[bytes_readed + 1] = '\0';
         int fp = open("outa.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
-        dprintf(fp,"%d\t%s\tbytes_read = %d\n",pid,buffer,(int)bytes_readed);
+        dprintf(fp, "%d\t%s\tbytes_read = %d\n", pid, buffer, (int)bytes_readed);
         close(fp);
 
         if (fork() == 0)

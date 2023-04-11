@@ -79,36 +79,33 @@ int main(int argc, char *argv[])
             FD_SET(pipefd_r[i][READ], &read_fds);
         }
 
-        int fx = open("aux.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
-        write(fx, "b", 1);
-        close(fx);
-
         if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1)
         {
             perror("Error in select");
             exit(1);
         }
 
-        write(fx, "b", 1);
-
         for (int i = 0; i < max_slaves; i++)
         {
             if (FD_ISSET(pipefd_r[i][READ], &read_fds))
             {
-                bytes_read = read(pipefd_r[i][READ], buffer, 73);
-
                 fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
                 dprintf(fp, "%d\t", pids[i]);
-                write(fp, buffer, bytes_read);
+                while ((bytes_read = read(pipefd_r[i][READ], buffer, 1)) > 0 && *buffer != '\n')
+                {
+                    write(fp, buffer, 1);
+                }
+
+                dprintf(fp, "\n", pids[i]);
+
                 close(fp);
                 files_read++;
 
                 if (files_processed < file_qty)
                 {
-                    process_files(i, pipefd_w, paths, &files_processed, amount_to_process(file_qty, files_processed));
+                    process_files(i, pipefd_w, paths, &files_processed, 1);
                 }
             }
-            FD_CLR(pipefd_r[i][READ], &read_fds);
         }
     }
 
