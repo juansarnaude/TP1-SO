@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/select.h>
+#include "/home/cane/so/TP1/TP1-SO/lib/shared_mem.h"
 
 #define BUFF_LEN 64
 #define SLAVES_QTY 4
@@ -65,6 +66,8 @@ int main(int argc, char *argv[])
 
     fd_set read_fds;
 
+    shm_ADT shared_memory = create_shm(file_qty); //Shared memory creation to communicate with view process
+
     for (int i = 0; i < max_slaves; i++)
     {
         process_files(i, pipefd_w, paths, &files_processed, amount_to_process(file_qty, files_processed));
@@ -84,20 +87,24 @@ int main(int argc, char *argv[])
             perror("Error in select");
             exit(1);
         }
-
         for (int i = 0; i < max_slaves; i++)
         {
             if (FD_ISSET(pipefd_r[i][READ], &read_fds))
             {
+                char md5_result[BUFF_LEN];
                 fp = open("out.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
-                dprintf(fp, "%d\t", pids[i]);
+                int j = 0;
                 while ((bytes_read = read(pipefd_r[i][READ], buffer, 1)) > 0 && *buffer != '\n')
                 {
-                    write(fp, buffer, 1);
+                    md5_result[j] = buffer[0];
+                    j++;
                 }
-
-                dprintf(fp, "\n", pids[i]);
-
+                md5_result[j] = '\0';
+                char * to_return[BUFF_LEN];
+                int to_return_size = sprintf(to_return,"%d\t%s\n",pids[i],md5_result);
+                write(fp,to_return,to_return_size);
+                write_shm(shared_memory,to_return);
+                write(fp,"Volvi de shm",strlen("Volvi de shm"));
                 close(fp);
                 files_read++;
 
