@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
                 char * to_return[BUFF_LEN];
                 int to_return_size = sprintf(to_return,"%d\t%s\n",pids[i],md5_result);
                 write(fp,to_return,to_return_size);
-                write_shm(shared_memory,to_return);
+                write_shm(shared_memory,to_return,to_return_size);
                 write(fp,"Volvi de shm",strlen("Volvi de shm"));
                 close(fp);
                 files_read++;
@@ -117,10 +117,14 @@ int main(int argc, char *argv[])
     }
 
     close_pipes(pipefd_w, pipefd_r, max_slaves);
-
+    
     // Free memory allocated for paths
     free(paths);
     free(buffer);
+
+    //We output de number of files processed so that the view process can read it and output its content on
+    //standard output
+    printf("%d\n",file_qty);
 
     return 0;
 }
