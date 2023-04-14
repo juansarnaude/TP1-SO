@@ -14,7 +14,6 @@ int main()
     size_t bufsize = 0;
 
     int pid = (int)getpid();
-    int i = 0;
 
     while (getline(&buffer, &bufsize, stdin) != EOF)
     {

@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/select.h>
-#include "/home/cane/so/TP1/TP1-SO/lib/shared_mem.h"
+#include "./lib/shared_mem.h"
 
 #define BUFF_LEN 64
 #define SLAVES_QTY 4
@@ -24,12 +24,15 @@ void close_pipes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 
 int main(int argc, char *argv[])
 {
+
     // Verification of arguments
     if (argc <= 1)
     {
         char errmsg[] = "Invalid arguments quantity";
         print_error_msg(errmsg);
     }
+
+    sleep(2);
 
     char **paths = calloc(argc - 1, sizeof(char *));
     if (paths == NULL)
@@ -104,7 +107,6 @@ int main(int argc, char *argv[])
                 int to_return_size = sprintf(to_return,"%d\t%s\n",pids[i],md5_result);
                 write(fp,to_return,to_return_size);
                 write_shm(shared_memory,to_return,to_return_size);
-                write(fp,"Volvi de shm",strlen("Volvi de shm"));
                 close(fp);
                 files_read++;
 
@@ -116,6 +118,7 @@ int main(int argc, char *argv[])
         }
     }
 
+
     close_pipes(pipefd_w, pipefd_r, max_slaves);
     
     // Free memory allocated for paths
@@ -124,7 +127,9 @@ int main(int argc, char *argv[])
 
     //We output de number of files processed so that the view process can read it and output its content on
     //standard output
-    printf("%d\n",file_qty);
+    printf("%s %d\n",shared_memory->shm_name,file_qty);
+
+    //delete_shm(shared_memory);
 
     return 0;
 }

@@ -1,3 +1,6 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
+
 #include "shared_mem.h"
 
 /*
@@ -5,20 +8,7 @@ In this memory we will have 32 bytes of the md5 value and the following 32 bytes
 summing up to 64 bytes per file proccesed.
 */
 
-typedef struct shm_CDT
-{
-    int shm_id;
-    char *shm_name;
-    char *shm_ptr;
 
-    int size;
-    int write_index;
-    int read_index;
-
-    sem_t *sem;
-    sem_t *sem_write;
-    sem_t *sem_read;
-} shm_CDT;
 
 // Main is only for testing purposes
 //int main()
@@ -37,7 +27,7 @@ shm_ADT create_shm(int file_qty)
 {
     shm_ADT new_shm = malloc(sizeof(shm_CDT));
 
-    char *name = "/shm_md5";
+    char *name = "shared_memory1";
 
     // Creates the shared memory
     int shm_fd = shm_open(name, O_CREAT | O_RDWR, (mode_t)MODE);
@@ -82,11 +72,6 @@ shm_ADT create_shm(int file_qty)
         delete_shm(new_shm);
         perror("Creating the shared memory failed: semaphor error");
     }
-    int fp = open("outsharedmem.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
-    int semvalue;
-    sem_getvalue(new_shm->sem_write,&semvalue);
-    dprintf(fp,"%d",semvalue);
-    close(fp);
     new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
     if (new_shm->sem == SEM_FAILED)
     {
@@ -154,22 +139,89 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
     return 1;
 }
 
+int connect_shm(shm_ADT shared_memory, char * shared_memory_name, int file_qty){
+    int fp = open("outconnectmem.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+    
+    
+    shared_memory->shm_name = shared_memory_name;
+    
+    int shm_fd = shm_open(shared_memory_name, O_RDWR, S_IRUSR | S_IWUSR);
+    if (shm_fd  == -1)
+    {
+        perror("Opening existing shared memory failed: shm_open failed");
+        exit(1);
+    }
+    
+    shared_memory->shm_ptr= mmap(NULL, FILE_SIZE_SHM * file_qty, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shared_memory->shm_ptr == MAP_FAILED)
+    {
+        perror("Opening existing shared memory failed: mmap failed");
+        exit(1);
+    }
+
+    close(shm_fd);
+    
+    sem_t* sem = sem_open(SEM_NAME,O_RDWR);
+    if (sem == SEM_FAILED)
+    {
+        perror("Opening existing shared memory failed: semaphor error");
+        exit(1);
+    }
+
+    if (sem_post(sem) == -1)
+    {
+        perror("Failed in write function");
+        sem_close(sem);
+        sem_unlink(SEM_NAME);
+        exit(1);
+    }
+
+    shared_memory->sem = sem;
+    //sem_close(sem);
+
+    sem_t * sem_read = sem_open(SEM_NAME_READ, O_RDWR);
+    if (sem_read == SEM_FAILED)
+    {
+        perror("Failed opening existing read semaphore");
+        exit(1);
+    }
+           
+    shared_memory->sem_read = sem_read;
+    shared_memory->read_index = 0;
+    shared_memory->write_index = 0;
+    shared_memory->size = file_qty * FILE_SIZE_SHM;
+
+    dprintf(fp,"%s","Llego");
+    close(fp);
+    return 1;
+}
+
 // Reads the shared memory.
 int read_shm(shm_ADT shm, char *buff)
 {
+    
+    if(shm->shm_ptr[shm->read_index] == '\0')
+        return 0;
+
     sem_wait(shm->sem);
 
     // Special semaphores for Write to avoid race condition and data misreadings
+    
     sem_wait(shm->sem_read);
+    
+    //int semvalue;
+    //sem_getvalue(shm->sem_read,&semvalue);
+    //printf("%d\n",semvalue);
 
     // Check if theres enough space in the shared memory
-    if (shm->read_index + FILE_SIZE_SHM >= shm->size)
-    {
-        perror("Trying to read out of shared memory bounds");
-        exit(1);
-    }
+    // if (shm->read_index + FILE_SIZE_SHM >= shm->size)
+    // {
+    //     perror("Trying to read out of shared memory bounds");
+    //     exit(1);
+    // }
+    
     int shm_idx = shm->read_index;
-    shm->read_index += FILE_SIZE_SHM;
+    //shm->read_index += FILE_SIZE_SHM;
 
     if (sem_post(shm->sem_read) == -1)
     {
@@ -184,12 +236,15 @@ int read_shm(shm_ADT shm, char *buff)
     int i = 0;
 
     // Cortar antes, cuando no queda mas pid
-    for (; i < FILE_SIZE_SHM; i++)
+    //for (; i < FILE_SIZE_SHM; i++)
+    
+    for(;shm->shm_ptr[shm_idx + i] != '\n';i++)
     {
         buff[i] = shm->shm_ptr[shm_idx + i];
     }
 
-    shm->read_index += FILE_SIZE_SHM;
+//    shm->read_index += FILE_SIZE_SHM;
+    shm->read_index += i + 1;
     buff[i] = '\0';
 
     return 1;
