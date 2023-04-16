@@ -1,3 +1,9 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "./lib/md5sum.h"
 
 void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, int pids[]);
@@ -24,14 +30,17 @@ int main(int argc, char *argv[])
     }
 
     int file_qty;
+    if (argc == 0)
+        return 0;
     // Create an array of strings that will be used as an argument for the creation of the slave procceses
     for (file_qty = 1; file_qty <= argc - 1; file_qty++)
     {
         paths[file_qty - 1] = argv[file_qty];
     }
     file_qty--;
-
-    shm_ADT shared_memory = create_shm(file_qty); // Shared memory creation to communicate with view process
+    shm_ADT shared_memory = create_shm(file_qty, "shared_memory2"); // Shared memory creation to communicate with view process
+    printf("%s %d\n", shared_memory->shm_name, file_qty);
+    // When finished the program outputs necesary information for the view program
     sleep(2);
 
     // Call to the funciton that create slave processes
@@ -57,22 +66,28 @@ int main(int argc, char *argv[])
 
     while (files_read < file_qty)
     {
-        int max_fd = FD_SETSIZE;
+        int max_fd = 0;
         FD_ZERO(&read_fds);
         for (int i = 0; i < max_slaves; i++)
         {
             FD_SET(pipefd_r[i][READ], &read_fds);
+            if (pipefd_r[i][READ] > max_fd)
+                max_fd = pipefd_r[i][READ];
         }
+        printf("maxfd:%d\n", max_fd);
 
         if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1)
         {
             print_error_msg("Error in select");
         }
+        printf("hola\n");
+
         for (int i = 0; i < max_slaves; i++)
         {
             // If theres something to be read from the pipe
             if (FD_ISSET(pipefd_r[i][READ], &read_fds))
             {
+
                 int fp = open("resultado.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
                 char md5_result[BUFF_LEN];
                 int j;
@@ -83,9 +98,8 @@ int main(int argc, char *argv[])
                 md5_result[j] = '\0';
 
                 // Format output in char array to_return
-                char *to_return[BUFF_LEN];
+                char to_return[BUFF_LEN];
                 int to_return_size = sprintf(to_return, "%d\t%s\n", pids[i], md5_result);
-                sleep(1);
                 write(fp, to_return, to_return_size);
                 write_shm(shared_memory, to_return, to_return_size);
                 close(fp);
@@ -108,10 +122,7 @@ int main(int argc, char *argv[])
     // Free memory allocated for paths
     free(paths);
     free(buffer);
-
-    // When finished the program outputs necesary information for the view program
-    printf("%s %d\n", shared_memory->shm_name, file_qty);
-
+    free(shared_memory);
     return 0;
 }
 

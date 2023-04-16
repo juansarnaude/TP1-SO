@@ -1,5 +1,11 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 
 #include "shared_mem.h"
 
@@ -9,25 +15,29 @@ summing up to 64 bytes per file proccesed.
 */
 
 // Function that creates the shared memory
-shm_ADT create_shm(int file_qty)
+shm_ADT create_shm(int file_qty, char *name)
 {
     shm_ADT new_shm = malloc(sizeof(shm_CDT));
-
-    char *name = "shared_memory1";
-
+    if (new_shm == NULL)
+    {
+        perror("Creating the shared memory failed: allocate memory for shm failed");
+        return 0;
+    }
     // Creates the shared memory
     int shm_fd = shm_open(name, O_CREAT | O_RDWR, (mode_t)MODE);
     if (shm_fd == -1)
     {
         perror("Creating the shared memory failed: shm_open failed");
-        exit(1);
+        free(new_shm);
+        return 0;
     }
 
     // Sets the size of the shared memory to file_qty * FILE_SIZE_SHM
     if (ftruncate(shm_fd, file_qty * FILE_SIZE_SHM) == -1)
     {
         perror("Creating the shared memory failed: ftruncate failed");
-        exit(1);
+        free(new_shm);
+        return 0;
     }
 
     // Maps the shared memory
@@ -35,9 +45,10 @@ shm_ADT create_shm(int file_qty)
     if (ptr == MAP_FAILED)
     {
         perror("Creating the shared memory failed: mmap failed");
-        exit(1);
-    }
+        free(new_shm);
 
+        return 0;
+    }
     new_shm->shm_name = name;
     new_shm->shm_id = shm_fd;
     new_shm->shm_ptr = ptr;
@@ -50,6 +61,7 @@ shm_ADT create_shm(int file_qty)
     {
         delete_shm(new_shm);
         perror("Creating the shared memory failed: semaphor error");
+        return 0;
     }
 
     new_shm->sem_write = sem_open(SEM_NAME_WRITE, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
@@ -57,12 +69,14 @@ shm_ADT create_shm(int file_qty)
     {
         delete_shm(new_shm);
         perror("Creating the shared memory failed: semaphor error");
+        return 0;
     }
-    new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
+    new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
     if (new_shm->sem == SEM_FAILED)
     {
         delete_shm(new_shm);
         perror("Creating the shared memory failed: semaphor error");
+        return 0;
     }
 
     return new_shm;
@@ -79,14 +93,13 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
 
     // Special semaphores for Write to avoid race condition and data overlaps
     sem_wait(shm->sem);
-
     sem_wait(shm->sem_write);
 
     // Check if theres enough space in the shared memory
     if (shm->write_index + FILE_SIZE_SHM > shm->size)
     {
         perror("Not enough space in the shared memory");
-        exit(1);
+        return 0;
     }
 
     int shm_idx = shm->write_index;
@@ -106,7 +119,7 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
         sem_close(shm->sem_write);
         sem_unlink(SEM_NAME_WRITE);
         delete_shm(shm);
-        exit(1);
+        return 0;
     }
     if (sem_post(shm->sem) == -1)
     {
@@ -114,9 +127,16 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
         sem_close(shm->sem);
         sem_unlink(SEM_NAME);
         delete_shm(shm);
-        exit(1);
+        return 0;
     }
-
+    if (sem_post(shm->sem_read) == -1)
+    {
+        perror("Failed in write function");
+        sem_close(shm->sem);
+        sem_unlink(SEM_NAME);
+        delete_shm(shm);
+        return 0;
+    }
     return 1;
 }
 
@@ -130,7 +150,7 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
     if (shm_fd == -1)
     {
         perror("Opening existing shared memory failed: shm_open failed");
-        exit(1);
+        return 0;
     }
 
     // Maps the memory
@@ -138,7 +158,7 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
     if (shared_memory->shm_ptr == MAP_FAILED)
     {
         perror("Opening existing shared memory failed: mmap failed");
-        exit(1);
+        return 0;
     }
     close(shm_fd);
 
@@ -147,7 +167,7 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
     if (sem == SEM_FAILED)
     {
         perror("Opening existing shared memory failed: semaphor error");
-        exit(1);
+        return 0;
     }
 
     // Assign the semaphore to the sem of the shared_memory provided
@@ -158,11 +178,17 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
     if (sem_read == SEM_FAILED)
     {
         perror("Failed opening existing read semaphore");
-        exit(1);
+        return 0;
     }
-
+    sem_t *sem_write = sem_open(SEM_NAME_WRITE, O_RDWR);
+    if (sem_write == SEM_FAILED)
+    {
+        perror("Failed opening existing read semaphore");
+        return 0;
+    }
     // Fill resting values
     shared_memory->sem_read = sem_read;
+    shared_memory->sem_write = sem_write;
     shared_memory->read_index = 0;
     shared_memory->size = file_qty * FILE_SIZE_SHM;
 
@@ -172,13 +198,18 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
 // Reads the shared memory.
 int read_shm(shm_ADT shm, char *buff)
 {
-    // Wait for write process to end
-    sem_wait(shm->sem);
     if (shm->size == shm->read_index)
         return 0;
-
+    int semvalue1;
+    sem_getvalue(shm->sem, &semvalue1);
+    printf("%d\n", semvalue1);
+    int semvalue;
+    sem_getvalue(shm->sem_read, &semvalue);
+    printf("%d\n", semvalue);
     // Special semaphores for Write to avoid race condition and data misreadings
     sem_wait(shm->sem_read);
+    //  Wait for write process to end
+    sem_wait(shm->sem);
 
     // Set shm index
     int shm_idx = shm->read_index;
@@ -200,30 +231,17 @@ int read_shm(shm_ADT shm, char *buff)
         sem_close(shm->sem_read);
         sem_unlink(SEM_NAME_READ);
         delete_shm(shm);
-        exit(1);
+        return 0;
     }
-    if (sem_post(shm->sem_read) == -1)
-    {
-        shm->read_index -= FILE_SIZE_SHM;
-        perror("Failed in read function");
-        sem_close(shm->sem_read);
-        sem_unlink(SEM_NAME_READ);
-        delete_shm(shm);
-        exit(1);
-    }
-    sleep(1);
+    // for (int i = 0; i < 1000; i++)
+    // {
+    // }
     return 1;
 }
 
 // Deletes the shared memory
-int delete_shm(shm_ADT shm)
+void delete_shm(shm_ADT shm)
 {
-    sem_close(shm->sem);
-    sem_unlink(SEM_NAME);
-    sem_close(shm->sem_write);
-    sem_unlink(SEM_NAME_WRITE);
-    sem_close(shm->sem_read);
-    sem_unlink(SEM_NAME_READ);
 
     if (munmap(shm->shm_ptr, shm->size) == -1)
     {
@@ -237,6 +255,14 @@ int delete_shm(shm_ADT shm)
         exit(1);
     }
     free(shm);
+}
 
-    return 1; // ALL GOOD
+void delete_semaphores(shm_ADT shm)
+{
+    sem_close(shm->sem);
+    sem_unlink(SEM_NAME);
+    sem_close(shm->sem_write);
+    sem_unlink(SEM_NAME_WRITE);
+    sem_close(shm->sem_read);
+    sem_unlink(SEM_NAME_READ);
 }
