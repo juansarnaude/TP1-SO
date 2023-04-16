@@ -1,9 +1,9 @@
 CC=gcc
-GCCFLAGS =-Wall -std=c99 -pedantic
+GCCFLAGS =-g -Wall -std=c99 -pedantic
 GCCLIBS = -lrt -lpthread
 FILES = $(wildcard lib/*.c)
 OBJECT_FILES = $(FILES:.c=.o)
-MAIN_FILES = md5sum slave view
+MAIN_FILES = app slave view
 DEPS = $(wildcard *.h) $(wildcard lib/*.h)
 
 debug: GCCFLAGS+=-g

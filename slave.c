@@ -7,14 +7,13 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "./lib/slave.h"
-
 int main()
 {
     char *buffer;
     size_t bufsize = 0;
     int len;
 
-    while (getline(&buffer, &bufsize, stdin) != EOF)
+    while (getline(&buffer, &bufsize, stdin) > 0)
     {
         if (buffer != NULL && (len = strlen(buffer)) >= 1)
         {

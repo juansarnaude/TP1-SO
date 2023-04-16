@@ -89,8 +89,6 @@ summing up to 64 bytes each time the function is called.
 */
 int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
 {
-    printf("write\n");
-
     // Special semaphores for Write to avoid race condition and data overlaps
     sem_wait(shm->sem);
     sem_wait(shm->sem_write);
@@ -200,12 +198,6 @@ int read_shm(shm_ADT shm, char *buff)
 {
     if (shm->size == shm->read_index)
         return 0;
-    int semvalue1;
-    sem_getvalue(shm->sem, &semvalue1);
-    printf("%d\n", semvalue1);
-    int semvalue;
-    sem_getvalue(shm->sem_read, &semvalue);
-    printf("%d\n", semvalue);
     // Special semaphores for Write to avoid race condition and data misreadings
     sem_wait(shm->sem_read);
     //  Wait for write process to end
@@ -233,9 +225,6 @@ int read_shm(shm_ADT shm, char *buff)
         delete_shm(shm);
         return 0;
     }
-    // for (int i = 0; i < 1000; i++)
-    // {
-    // }
     return 1;
 }
 
