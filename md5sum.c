@@ -16,8 +16,6 @@ int main(int argc, char *argv[])
         print_error_msg(errmsg);
     }
 
-    sleep(2);
-
     char **paths = calloc(argc - 1, sizeof(char *));
     if (paths == NULL)
     {
@@ -32,6 +30,9 @@ int main(int argc, char *argv[])
         paths[file_qty - 1] = argv[file_qty];
     }
     file_qty--;
+
+    shm_ADT shared_memory = create_shm(file_qty); // Shared memory creation to communicate with view process
+    sleep(2);
 
     // Call to the funciton that create slave processes
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
@@ -48,8 +49,6 @@ int main(int argc, char *argv[])
     char *buffer = malloc(BUFF_LEN * sizeof(char));
 
     fd_set read_fds;
-
-    shm_ADT shared_memory = create_shm(file_qty); // Shared memory creation to communicate with view process
 
     for (int i = 0; i < max_slaves; i++)
     {
@@ -86,6 +85,7 @@ int main(int argc, char *argv[])
                 // Format output in char array to_return
                 char *to_return[BUFF_LEN];
                 int to_return_size = sprintf(to_return, "%d\t%s\n", pids[i], md5_result);
+                sleep(1);
                 write(fp, to_return, to_return_size);
                 write_shm(shared_memory, to_return, to_return_size);
                 close(fp);

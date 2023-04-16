@@ -8,20 +8,6 @@ In this memory we will have 32 bytes of the md5 value and the following 32 bytes
 summing up to 64 bytes per file proccesed.
 */
 
-
-
-// Main is only for testing purposes
-//int main()
-//{
-//    shm_ADT javier = create_shm(12);
-//    char test[64] = "e14a3ff5b5e67ede599cac94358e1028266626";
-//    char *readVal;
-//    write_shm(javier, test);
-//    read_shm(javier, readVal);
-//    printf("%s\n", readVal);
-//    delete_shm(javier);
-//}
-
 // Function that creates the shared memory
 shm_ADT create_shm(int file_qty)
 {
@@ -59,7 +45,7 @@ shm_ADT create_shm(int file_qty)
     new_shm->write_index = 0;
     new_shm->read_index = 0;
 
-    new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
+    new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
     if (new_shm->sem == SEM_FAILED)
     {
         delete_shm(new_shm);
@@ -89,25 +75,30 @@ summing up to 64 bytes each time the function is called.
 */
 int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
 {
-    
+    printf("write\n");
+
     // Special semaphores for Write to avoid race condition and data overlaps
-    
+    sem_wait(shm->sem);
+
     sem_wait(shm->sem_write);
-    
 
     // Check if theres enough space in the shared memory
-    //if (shm->write_index + FILE_SIZE_SHM >= shm->size)
-    
-    //if (shm->write_index + FILE_SIZE_SHM >= shm->size)
-    if (shm->write_index + buff_len >= shm->size)
+    if (shm->write_index + FILE_SIZE_SHM > shm->size)
     {
         perror("Not enough space in the shared memory");
         exit(1);
     }
-    
+
     int shm_idx = shm->write_index;
-    //shm->write_index += FILE_SIZE_SHM;
-    shm->write_index += buff_len;
+    shm->write_index += FILE_SIZE_SHM;
+    int i = 0;
+    // Write the entire buffer and fill free space with NULL
+    for (; i < buff_len; i++)
+    {
+        shm->shm_ptr[shm_idx + i] = buff[i];
+    }
+    for (; i < FILE_SIZE_SHM; i++)
+        shm->shm_ptr[shm_idx + i] = '\0';
     if (sem_post(shm->sem_write) == -1)
     {
         shm->write_index -= buff_len;
@@ -117,14 +108,6 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
         delete_shm(shm);
         exit(1);
     }
-
-    int i = 0;
-    // Cortar antes, cuando no queda mas pid (el tema de los 0)
-    for (; i < buff_len; i++)
-    {
-        shm->shm_ptr[shm_idx + i] = buff[i];
-    }
-
     if (sem_post(shm->sem) == -1)
     {
         perror("Failed in write function");
@@ -134,95 +117,91 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
         exit(1);
     }
 
-    
-
     return 1;
 }
 
-int connect_shm(shm_ADT shared_memory, char * shared_memory_name, int file_qty){
-    int fp = open("outconnectmem.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
-    
-    
+int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
+{
+    // Asign the name of the shm to be connected
     shared_memory->shm_name = shared_memory_name;
-    
+
+    // We connect the desired shm
     int shm_fd = shm_open(shared_memory_name, O_RDWR, S_IRUSR | S_IWUSR);
-    if (shm_fd  == -1)
+    if (shm_fd == -1)
     {
         perror("Opening existing shared memory failed: shm_open failed");
         exit(1);
     }
-    
-    shared_memory->shm_ptr= mmap(NULL, FILE_SIZE_SHM * file_qty, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+
+    // Maps the memory
+    shared_memory->shm_ptr = mmap(NULL, FILE_SIZE_SHM * file_qty, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shared_memory->shm_ptr == MAP_FAILED)
     {
         perror("Opening existing shared memory failed: mmap failed");
         exit(1);
     }
-
     close(shm_fd);
-    
-    sem_t* sem = sem_open(SEM_NAME,O_RDWR);
+
+    // Get the semaphore sem
+    sem_t *sem = sem_open(SEM_NAME, O_RDWR);
     if (sem == SEM_FAILED)
     {
         perror("Opening existing shared memory failed: semaphor error");
         exit(1);
     }
 
-    if (sem_post(sem) == -1)
-    {
-        perror("Failed in write function");
-        sem_close(sem);
-        sem_unlink(SEM_NAME);
-        exit(1);
-    }
-
+    // Assign the semaphore to the sem of the shared_memory provided
     shared_memory->sem = sem;
-    //sem_close(sem);
 
-    sem_t * sem_read = sem_open(SEM_NAME_READ, O_RDWR);
+    // Assig the read sem
+    sem_t *sem_read = sem_open(SEM_NAME_READ, O_RDWR);
     if (sem_read == SEM_FAILED)
     {
         perror("Failed opening existing read semaphore");
         exit(1);
     }
-           
+
+    // Fill resting values
     shared_memory->sem_read = sem_read;
     shared_memory->read_index = 0;
-    shared_memory->write_index = 0;
     shared_memory->size = file_qty * FILE_SIZE_SHM;
 
-    dprintf(fp,"%s","Llego");
-    close(fp);
     return 1;
 }
 
 // Reads the shared memory.
 int read_shm(shm_ADT shm, char *buff)
 {
-    
-    if(shm->shm_ptr[shm->read_index] == '\0')
+    // Wait for write process to end
+    sem_wait(shm->sem);
+    if (shm->size == shm->read_index)
         return 0;
 
-    sem_wait(shm->sem);
-
     // Special semaphores for Write to avoid race condition and data misreadings
-    
     sem_wait(shm->sem_read);
-    
-    //int semvalue;
-    //sem_getvalue(shm->sem_read,&semvalue);
-    //printf("%d\n",semvalue);
 
-    // Check if theres enough space in the shared memory
-    // if (shm->read_index + FILE_SIZE_SHM >= shm->size)
-    // {
-    //     perror("Trying to read out of shared memory bounds");
-    //     exit(1);
-    // }
-    
+    // Set shm index
     int shm_idx = shm->read_index;
-    //shm->read_index += FILE_SIZE_SHM;
 
+    // Read the shm
+    int i = 0;
+    for (; i < FILE_SIZE_SHM; i++)
+    {
+        buff[i] = shm->shm_ptr[shm_idx + i];
+    }
+    shm->read_index += FILE_SIZE_SHM;
+    buff[i] = '\0';
+
+    // Enable the write process or read process
+    if (sem_post(shm->sem) == -1)
+    {
+        shm->read_index -= FILE_SIZE_SHM;
+        perror("Failed in read function");
+        sem_close(shm->sem_read);
+        sem_unlink(SEM_NAME_READ);
+        delete_shm(shm);
+        exit(1);
+    }
     if (sem_post(shm->sem_read) == -1)
     {
         shm->read_index -= FILE_SIZE_SHM;
@@ -232,27 +211,20 @@ int read_shm(shm_ADT shm, char *buff)
         delete_shm(shm);
         exit(1);
     }
-
-    int i = 0;
-
-    // Cortar antes, cuando no queda mas pid
-    //for (; i < FILE_SIZE_SHM; i++)
-    
-    for(;shm->shm_ptr[shm_idx + i] != '\n';i++)
-    {
-        buff[i] = shm->shm_ptr[shm_idx + i];
-    }
-
-//    shm->read_index += FILE_SIZE_SHM;
-    shm->read_index += i + 1;
-    buff[i] = '\0';
-
+    sleep(1);
     return 1;
 }
 
 // Deletes the shared memory
 int delete_shm(shm_ADT shm)
 {
+    sem_close(shm->sem);
+    sem_unlink(SEM_NAME);
+    sem_close(shm->sem_write);
+    sem_unlink(SEM_NAME_WRITE);
+    sem_close(shm->sem_read);
+    sem_unlink(SEM_NAME_READ);
+
     if (munmap(shm->shm_ptr, shm->size) == -1)
     {
         perror("munmap failed");
