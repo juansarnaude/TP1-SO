@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 
                 // Format output in char array to_return
                 char to_return[BUFF_LEN];
-                int to_return_size = sprintf(to_return, "%d\t%s\n", pids[i], md5_result);
+                int to_return_size = snprintf(to_return, BUFF_LEN, "%d\t%s\n", pids[i], md5_result);
                 write(fp, to_return, to_return_size);
                 write_shm(shared_memory, to_return, to_return_size);
                 close(fp);
