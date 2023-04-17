@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
     char shared_memory_name[MAX_SHM_NAME_LENGTH];
     int number_of_files = 0;
 
-    // If the data is sent trough arguments
+    // If the data is sent through arguments
     if (argc == 3)
     {
         // Get the shared memory name
@@ -24,8 +24,8 @@ int main(int argc, char *argv[])
     // If the data is sent through STDIN
     else if (argc == 1)
     {
-        char input[1024] = {0};
-        read(STDIN_FILENO, input, 1024);
+        char input[MAX_BUFF_LEN] = {0};
+        read(STDIN_FILENO, input, MAX_BUFF_LEN);
         // End input when '\n' is detected
         input[strcspn(input, "\n")] = '\0';
         // Filter data provided, first the shared memory name
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
         shared_memory_name[i] = '\0';
 
         // Converting string to int for number of files
-        char number_of_files_str[5];
+        char number_of_files_str[MAX_FILES_DIGIT_NUMBER];
         int j = 0;
         for (; input[i] != '\0'; j++, i++)
         {
