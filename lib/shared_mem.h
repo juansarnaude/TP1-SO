@@ -26,8 +26,12 @@ typedef struct shm_CDT *shm_ADT;
 
 #define MODE 0666
 
-#define SEM_NAME "shm_sem"
-#define SEM_NAME_READ "shm_sem_read"
+#define SEM_NAME            "shm_sem"
+#define SEM_INIT_VALUE      1
+#define SEM_NAME_READ       "shm_sem_read"
+#define SEM_READ_INIT_VALUE 0
+#define SEM_ERROR           -1
+#define SHM_ERROR           -1       
 
 #define PAGE_SIZE 4096
 #define FILE_SIZE_SHM 64

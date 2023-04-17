@@ -15,7 +15,7 @@ shm_ADT create_shm(int file_qty, char *name)
     }
     // Creates the shared memory
     int shm_fd = shm_open(name, O_CREAT | O_RDWR, (mode_t)MODE);
-    if (shm_fd == -1)
+    if (shm_fd == SHM_ERROR)
     {
         perror("Creating the shared memory failed: shm_open failed");
         free(new_shm);
@@ -23,7 +23,7 @@ shm_ADT create_shm(int file_qty, char *name)
     }
 
     // Sets the size of the shared memory to file_qty * FILE_SIZE_SHM
-    if (ftruncate(shm_fd, file_qty * FILE_SIZE_SHM) == -1)
+    if (ftruncate(shm_fd, file_qty * FILE_SIZE_SHM) == SHM_ERROR)
     {
         perror("Creating the shared memory failed: ftruncate failed");
         free(new_shm);
@@ -49,7 +49,7 @@ shm_ADT create_shm(int file_qty, char *name)
 
     // Creation of semaphores
     // sem syncs read and write operations to avoid race conditions
-    new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
+    new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, SEM_INIT_VALUE);
     if (new_shm->sem == SEM_FAILED)
     {
         delete_shm(new_shm);
@@ -57,7 +57,7 @@ shm_ADT create_shm(int file_qty, char *name)
         return 0;
     }
     // sem_read syncs read operations to avoid race conditions, initialized with 0 value
-    new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
+    new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, SEM_READ_INIT_VALUE);
     if (new_shm->sem == SEM_FAILED)
     {
         delete_shm(new_shm);
@@ -92,7 +92,7 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
     for (; i < FILE_SIZE_SHM; i++)
         shm->shm_ptr[shm_idx + i] = '\0';
 
-    if (sem_post(shm->sem) == -1)
+    if (sem_post(shm->sem) == SEM_ERROR)
     {
         perror("Failed in write function");
         sem_close(shm->sem);
@@ -101,7 +101,7 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
         return 0;
     }
     // sem_read initial value is 0, once written in shared memory the read process can be enabled
-    if (sem_post(shm->sem_read) == -1)
+    if (sem_post(shm->sem_read) == SEM_ERROR)
     {
         perror("Failed in write function");
         sem_close(shm->sem);
@@ -119,7 +119,7 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
 
     // We connect the desired shm
     int shm_fd = shm_open(shared_memory_name, O_RDWR, S_IRUSR | S_IWUSR);
-    if (shm_fd == -1)
+    if (shm_fd == SHM_ERROR)
     {
         perror("Opening existing shared memory failed: shm_open failed");
         return 0;
@@ -180,7 +180,7 @@ int read_shm(shm_ADT shm, char *buff)
     buff[i] = '\0';
 
     // Enable the write process or read process
-    if (sem_post(shm->sem) == -1)
+    if (sem_post(shm->sem) == SEM_ERROR)
     {
         shm->read_index -= FILE_SIZE_SHM;
         perror("Failed in read function");

@@ -9,9 +9,13 @@
 #include <sys/select.h>
 #include "shared_mem.h"
 
-#define BUFF_LEN 64
-#define SLAVES_QTY 4
-#define MAX_FILES_SLAVE 2
+#define BUFF_LEN            64
+#define SLAVES_QTY          4
+#define MAX_FILES_SLAVE     2
+#define NUMBER_OF_PIPE_ENDS 2
+#define SELECT_ERROR        -1
+#define WRITE_ERROR         -1
+#define TIMEOUT_FOR_VIEW    2
 
 #define READ 0
 #define WRITE 1

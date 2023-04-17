@@ -31,14 +31,14 @@ int main(int argc, char *argv[])
     // Print useful information for view process
     dprintf(STDOUT_FILENO, "%s %d\n", shared_memory->shm_name, file_qty);
     putchar('\0');
-    sleep(2);
+    sleep(TIMEOUT_FOR_VIEW);
 
     // Calculate number of max slaves to be used
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
 
     // Fds created for read and write pipes for each slave
-    int pipefd_w[max_slaves][2];
-    int pipefd_r[max_slaves][2];
+    int pipefd_w[max_slaves][NUMBER_OF_PIPE_ENDS];
+    int pipefd_r[max_slaves][NUMBER_OF_PIPE_ENDS];
     int pids[max_slaves];
 
     create_slave_processes(pipefd_w, pipefd_r, max_slaves, pids);
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
                 max_fd = pipefd_r[i][READ];
         }
 
-        if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1)
+        if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == SELECT_ERROR)
         {
             print_error_msg("Error in select");
         }
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, int pids[])
+void create_slave_processes(int pipefd_w[][NUMBER_OF_PIPE_ENDS], int pipefd_r[][NUMBER_OF_PIPE_ENDS], int max_slaves, int pids[])
 {
 
     char *newargv[] = {"slave", NULL};
@@ -166,14 +166,14 @@ void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_proc
     for (int i = 0; i < qty; i++)
     {
         //   Send a file to the slave process
-        if (write(pipefd_w[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == -1)
+        if (write(pipefd_w[n_slave][WRITE], paths[*files_processed], strlen(paths[*files_processed])) == WRITE_ERROR)
         {
             char errmsg[] = "Failed to send paths to slave process";
             print_error_msg(errmsg);
         }
 
         // Each file will be written in a line
-        if (write(pipefd_w[n_slave][WRITE], &"\n", 1) == -1)
+        if (write(pipefd_w[n_slave][WRITE], &"\n", 1) == WRITE_ERROR)
         {
             char errmsg[] = "Failed to send paths to slave process";
             print_error_msg(errmsg);
@@ -188,7 +188,7 @@ void print_error_msg(char *str)
     exit(1);
 }
 
-void close_pipes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves)
+void close_pipes(int pipefd_w[][NUMBER_OF_PIPE_ENDS], int pipefd_r[][NUMBER_OF_PIPE_ENDS], int max_slaves)
 {
     for (int i = 0; i < max_slaves; i++)
     {
