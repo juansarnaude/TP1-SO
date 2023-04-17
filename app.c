@@ -1,10 +1,6 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "./lib/app.h"
-
-void create_slave_processes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves, int pids[]);
-void print_error_msg(char *str);
-int amount_to_process(int file_qty, int files_processed);
-void process_files(int n_slave, int pipefd_w[][2], char **paths, int *files_processed, int qty);
-void close_pipes(int pipefd_w[][2], int pipefd_r[][2], int max_slaves);
 
 int main(int argc, char *argv[])
 {
@@ -23,20 +19,20 @@ int main(int argc, char *argv[])
     }
 
     int file_qty;
-    if (argc == 0)
-        return 0;
     // Create an array of strings that will be used as an argument for the creation of the slave procceses
     for (file_qty = 1; file_qty <= argc - 1; file_qty++)
     {
         paths[file_qty - 1] = argv[file_qty];
     }
     file_qty--;
-    shm_ADT shared_memory = create_shm(file_qty, "shared_memory2"); // Shared memory creation to communicate with view process
+
+    // Shared memory creation to communicate with view process
+    shm_ADT shared_memory = create_shm(file_qty, "shared_memory");
+    // Print useful information for view process
     printf("%s %d\n", shared_memory->shm_name, file_qty);
-    // When finished the program outputs necesary information for the view program
     sleep(2);
 
-    // Call to the funciton that create slave processes
+    // Calculate number of max slaves to be used
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
 
     // Fds created for read and write pipes for each slave
@@ -46,18 +42,19 @@ int main(int argc, char *argv[])
 
     create_slave_processes(pipefd_w, pipefd_r, max_slaves, pids);
 
+    // Set variables needed
     int files_processed = 0;
     int files_read = 0;
     char *buffer = malloc(BUFF_LEN * sizeof(char));
-
     fd_set read_fds;
 
+    // Send  files to slaves
     for (int i = 0; i < max_slaves; i++)
     {
-
         process_files(i, pipefd_w, paths, &files_processed, amount_to_process(file_qty, files_processed));
     }
 
+    // Check if there are slaves free and files to be processed
     while (files_read < file_qty)
     {
         int max_fd = 0;

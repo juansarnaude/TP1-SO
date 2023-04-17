@@ -1,18 +1,8 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
-// This is a personal academic project. Dear PVS-Studio, please check it.
-// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
-// This is a personal academic project. Dear PVS-Studio, please check it.
-// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
-// This is a personal academic project. Dear PVS-Studio, please check it.
-// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
-
 #include "shared_mem.h"
 
-/*
-In this memory we will have 32 bytes of the md5 value and the following 32 bytes of the pid,
-summing up to 64 bytes per file proccesed.
-*/
+// In this memory we will have 64 bytes per file buffer
 
 // Function that creates the shared memory
 shm_ADT create_shm(int file_qty, char *name)
@@ -49,6 +39,8 @@ shm_ADT create_shm(int file_qty, char *name)
 
         return 0;
     }
+
+    // Assign previous values to shared memory
     new_shm->shm_name = name;
     new_shm->shm_id = shm_fd;
     new_shm->shm_ptr = ptr;
@@ -56,6 +48,8 @@ shm_ADT create_shm(int file_qty, char *name)
     new_shm->write_index = 0;
     new_shm->read_index = 0;
 
+    // Creation of semaphores
+    // sem syncs read and write operations to avoid race conditions
     new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
     if (new_shm->sem == SEM_FAILED)
     {
@@ -63,7 +57,7 @@ shm_ADT create_shm(int file_qty, char *name)
         perror("Creating the shared memory failed: semaphor error");
         return 0;
     }
-
+    // sem_write syncs write operations to avoid race conditions
     new_shm->sem_write = sem_open(SEM_NAME_WRITE, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
     if (new_shm->sem == SEM_FAILED)
     {
@@ -71,6 +65,7 @@ shm_ADT create_shm(int file_qty, char *name)
         perror("Creating the shared memory failed: semaphor error");
         return 0;
     }
+    // sem_read syncs read operations to avoid race conditions, initialized with 0 value
     new_shm->sem_read = sem_open(SEM_NAME_READ, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 0);
     if (new_shm->sem == SEM_FAILED)
     {
@@ -82,11 +77,7 @@ shm_ADT create_shm(int file_qty, char *name)
     return new_shm;
 }
 
-/*
-Writes in the shared memory;
-The md5 value will be written in the first 32 bytes and int the following 32 bytes the pid,
-summing up to 64 bytes each time the function is called.
-*/
+// Write to shared memory
 int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
 {
     // Special semaphores for Write to avoid race condition and data overlaps
@@ -102,14 +93,15 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
 
     int shm_idx = shm->write_index;
     shm->write_index += FILE_SIZE_SHM;
-    int i = 0;
     // Write the entire buffer and fill free space with NULL
+    int i = 0;
     for (; i < buff_len; i++)
     {
         shm->shm_ptr[shm_idx + i] = buff[i];
     }
     for (; i < FILE_SIZE_SHM; i++)
         shm->shm_ptr[shm_idx + i] = '\0';
+
     if (sem_post(shm->sem_write) == -1)
     {
         shm->write_index -= buff_len;
@@ -127,6 +119,7 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
         delete_shm(shm);
         return 0;
     }
+    // sem_read initial value is 0, once written in shared memory the read process can be enabled
     if (sem_post(shm->sem_read) == -1)
     {
         perror("Failed in write function");
@@ -160,18 +153,13 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
     }
     close(shm_fd);
 
-    // Get the semaphore sem
+    // Open semaphores
     sem_t *sem = sem_open(SEM_NAME, O_RDWR);
     if (sem == SEM_FAILED)
     {
         perror("Opening existing shared memory failed: semaphor error");
         return 0;
     }
-
-    // Assign the semaphore to the sem of the shared_memory provided
-    shared_memory->sem = sem;
-
-    // Assig the read sem
     sem_t *sem_read = sem_open(SEM_NAME_READ, O_RDWR);
     if (sem_read == SEM_FAILED)
     {
@@ -184,7 +172,8 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
         perror("Failed opening existing read semaphore");
         return 0;
     }
-    // Fill resting values
+    // Fill the shm values
+    shared_memory->sem = sem;
     shared_memory->sem_read = sem_read;
     shared_memory->sem_write = sem_write;
     shared_memory->read_index = 0;
@@ -196,14 +185,14 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
 // Reads the shared memory.
 int read_shm(shm_ADT shm, char *buff)
 {
+    // When the whole shm was read, returns 0
     if (shm->size == shm->read_index)
         return 0;
-    // Special semaphores for Write to avoid race condition and data misreadings
+
+    // Special semaphores for Write to avoid race condition and data overlaps
     sem_wait(shm->sem_read);
-    //  Wait for write process to end
     sem_wait(shm->sem);
 
-    // Set shm index
     int shm_idx = shm->read_index;
 
     // Read the shm
@@ -246,6 +235,7 @@ void delete_shm(shm_ADT shm)
     free(shm);
 }
 
+// Deletes semaphores
 void delete_semaphores(shm_ADT shm)
 {
     sem_close(shm->sem);
