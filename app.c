@@ -28,11 +28,10 @@ int main(int argc, char *argv[])
 
     // Shared memory creation to communicate with view process
     shm_ADT shared_memory = create_shm(file_qty, "shared_memory");
-    // Print useful information for view process and fills output
-    int filled = dprintf(STDOUT_FILENO, "%s %d\n", shared_memory->shm_name, file_qty);
-    for (; filled != BUFF_LEN; filled++)
-        putchar('\0');
-    sleep(TIMEOUT_FOR_VIEW);
+    // Print useful information for view process
+    dprintf(STDOUT_FILENO, "%s %d\n", shared_memory->shm_name, file_qty);
+    putchar('\0');
+    sleep(2);
 
     // Calculate number of max slaves to be used
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
