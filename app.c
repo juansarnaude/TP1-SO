@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     // Print useful information for view process
     dprintf(STDOUT_FILENO, "%s %d\n", shared_memory->shm_name, file_qty);
     putchar('\0');
-    sleep(2);
+    sleep(TIMEOUT_FOR_VIEW);
 
     // Calculate number of max slaves to be used
     int max_slaves = (SLAVES_QTY < ((file_qty + 1) / 2)) ? SLAVES_QTY : ((file_qty + 1) / 2);
