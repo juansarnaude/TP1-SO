@@ -42,7 +42,6 @@ shm_ADT create_shm(int file_qty, char *name)
 
     // Assign previous values to shared memory
     new_shm->shm_name = name;
-    new_shm->shm_id = shm_fd;
     new_shm->shm_ptr = ptr;
     new_shm->size = file_qty * FILE_SIZE_SHM;
     new_shm->write_index = 0;
@@ -51,14 +50,6 @@ shm_ADT create_shm(int file_qty, char *name)
     // Creation of semaphores
     // sem syncs read and write operations to avoid race conditions
     new_shm->sem = sem_open(SEM_NAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
-    if (new_shm->sem == SEM_FAILED)
-    {
-        delete_shm(new_shm);
-        perror("Creating the shared memory failed: semaphor error");
-        return 0;
-    }
-    // sem_write syncs write operations to avoid race conditions
-    new_shm->sem_write = sem_open(SEM_NAME_WRITE, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR, 1);
     if (new_shm->sem == SEM_FAILED)
     {
         delete_shm(new_shm);
@@ -82,7 +73,6 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
 {
     // Special semaphores for Write to avoid race condition and data overlaps
     sem_wait(shm->sem);
-    sem_wait(shm->sem_write);
 
     // Check if theres enough space in the shared memory
     if (shm->write_index + FILE_SIZE_SHM > shm->size)
@@ -102,15 +92,6 @@ int write_shm(shm_ADT shm, const char buff[FILE_SIZE_SHM], int buff_len)
     for (; i < FILE_SIZE_SHM; i++)
         shm->shm_ptr[shm_idx + i] = '\0';
 
-    if (sem_post(shm->sem_write) == -1)
-    {
-        shm->write_index -= buff_len;
-        perror("Failed in write function");
-        sem_close(shm->sem_write);
-        sem_unlink(SEM_NAME_WRITE);
-        delete_shm(shm);
-        return 0;
-    }
     if (sem_post(shm->sem) == -1)
     {
         perror("Failed in write function");
@@ -166,16 +147,10 @@ int connect_shm(shm_ADT shared_memory, char *shared_memory_name, int file_qty)
         perror("Failed opening existing read semaphore");
         return 0;
     }
-    sem_t *sem_write = sem_open(SEM_NAME_WRITE, O_RDWR);
-    if (sem_write == SEM_FAILED)
-    {
-        perror("Failed opening existing read semaphore");
-        return 0;
-    }
+
     // Fill the shm values
     shared_memory->sem = sem;
     shared_memory->sem_read = sem_read;
-    shared_memory->sem_write = sem_write;
     shared_memory->read_index = 0;
     shared_memory->size = file_qty * FILE_SIZE_SHM;
 
@@ -189,7 +164,7 @@ int read_shm(shm_ADT shm, char *buff)
     if (shm->size == shm->read_index)
         return 0;
 
-    // Special semaphores for Write to avoid race condition and data overlaps
+    // Special semaphores for read to avoid race condition and data overlaps
     sem_wait(shm->sem_read);
     sem_wait(shm->sem);
 
@@ -240,8 +215,6 @@ void delete_semaphores(shm_ADT shm)
 {
     sem_close(shm->sem);
     sem_unlink(SEM_NAME);
-    sem_close(shm->sem_write);
-    sem_unlink(SEM_NAME_WRITE);
     sem_close(shm->sem_read);
     sem_unlink(SEM_NAME_READ);
 }

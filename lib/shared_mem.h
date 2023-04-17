@@ -11,7 +11,6 @@
 
 typedef struct shm_CDT
 {
-    int shm_id;
     char *shm_name;
     char *shm_ptr;
 
@@ -20,7 +19,6 @@ typedef struct shm_CDT
     int read_index;
 
     sem_t *sem;
-    sem_t *sem_write;
     sem_t *sem_read;
 } shm_CDT;
 
@@ -28,9 +26,8 @@ typedef struct shm_CDT *shm_ADT;
 
 #define MODE 0666
 
-#define SEM_NAME "smh_sem"
-#define SEM_NAME_WRITE "smh_sem_write"
-#define SEM_NAME_READ "smh_sem_read"
+#define SEM_NAME "shm_sem"
+#define SEM_NAME_READ "shm_sem_read"
 
 #define PAGE_SIZE 4096
 #define FILE_SIZE_SHM 64
