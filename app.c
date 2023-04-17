@@ -28,8 +28,10 @@ int main(int argc, char *argv[])
 
     // Shared memory creation to communicate with view process
     shm_ADT shared_memory = create_shm(file_qty, "shared_memory");
-    // Print useful information for view process
-    printf("%s %d\n", shared_memory->shm_name, file_qty);
+    // Print useful information for view process and fills output
+    int filled = dprintf(STDOUT_FILENO, "%s %d\n", shared_memory->shm_name, file_qty);
+    for (; filled != BUFF_LEN; filled++)
+        putchar('\0');
     sleep(2);
 
     // Calculate number of max slaves to be used
@@ -111,7 +113,9 @@ int main(int argc, char *argv[])
     // Free memory allocated for paths
     free(paths);
     free(buffer);
-    free(shared_memory);
+
+    delete_semaphores(shared_memory);
+    delete_shm(shared_memory);
     return 0;
 }
 

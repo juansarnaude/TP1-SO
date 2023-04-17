@@ -195,18 +195,8 @@ int read_shm(shm_ADT shm, char *buff)
 // Deletes the shared memory
 void delete_shm(shm_ADT shm)
 {
-
-    if (munmap(shm->shm_ptr, shm->size) == -1)
-    {
-        perror("munmap failed");
-        exit(1);
-    }
-
-    if (shm_unlink(shm->shm_name) == -1)
-    {
-        perror("shm_unlink failed");
-        exit(1);
-    }
+    munmap(shm->shm_ptr, shm->size);
+    shm_unlink(shm->shm_name);
     free(shm);
 }
 
