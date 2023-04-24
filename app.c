@@ -142,8 +142,15 @@ void create_slave_processes(int pipefd_w[][NUMBER_OF_PIPE_ENDS], int pipefd_r[][
             dup2(pipefd_r[n_slave][WRITE], STDOUT_FILENO);
             close(pipefd_r[n_slave][WRITE]);
 
+            for (int i = 0; i < n_slave; i++)
+            {
+                close(pipefd_w[i][WRITE]);
+                close(pipefd_r[i][READ]);
+            }
             execve("slave", newargv, newenv);
         }
+        close(pipefd_r[n_slave][WRITE]);
+        close(pipefd_w[n_slave][READ]);
     }
 }
 
